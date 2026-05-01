@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "yO1Ks6olT88=",
+  "success": true,
+  "projectFilePath": "D:\\UserData\\Documents\\VSC Github Repo\\GHelper-Auto-Profile-Switcher\\GHelperAutoProfileSwitcher.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Lunarstar\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.26\\microsoft.netcore.app.ref.8.0.26.nupkg.sha512",
+    "C:\\Users\\Lunarstar\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.26\\microsoft.windowsdesktop.app.ref.8.0.26.nupkg.sha512",
+    "C:\\Users\\Lunarstar\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.26\\microsoft.aspnetcore.app.ref.8.0.26.nupkg.sha512",
+    "C:\\Users\\Lunarstar\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\8.0.26\\microsoft.netcore.app.host.win-x64.8.0.26.nupkg.sha512"
+  ],
+  "logs": []
+}

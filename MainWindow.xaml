@@ -1,0 +1,45 @@
+<Window x:Class="GHelperAutoProfileSwitcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:GHelperAutoProfileSwitcher"
+        Title="G-Helper Profile Agent" Height="450" Width="600" WindowStartupLocation="CenterScreen"
+        StateChanged="Window_StateChanged"
+        Closing="Window_Closing">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <DataGrid Name="ProfilesGrid" AutoGenerateColumns="False" CanUserAddRows="False" Grid.Row="0" Margin="0,0,0,10">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Process Name" Binding="{Binding ProcessName}" Width="*" />
+                <DataGridComboBoxColumn x:Name="ModeColumn" Header="Mode" SelectedItemBinding="{Binding Mode}" Width="100" />
+                <DataGridTemplateColumn Width="70">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="Remove" Click="RemoveProfile_Click" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <CheckBox Name="StartWithWindowsCheckBox" Content="Start with Windows" Click="StartWithWindowsCheckBox_Click"/>
+                <TextBlock Text="Made by Lunarstar &amp; Gemini" FontSize="10" Foreground="Gray" Margin="0,2,0,0" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Grid.Column="1">
+                <TextBlock Text="Current Mode: " VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <TextBlock Name="CurrentModeText" Text="Balanced" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                <Button Content="Add Current App" Width="120" Height="30" Click="AddCurrentApp_Click" />
+                <Button Content="Save" Width="80" Height="30" Margin="10,0,0,0" Click="Save_Click" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
