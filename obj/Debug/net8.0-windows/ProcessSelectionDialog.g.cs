@@ -60,7 +60,7 @@ namespace GHelperAutoProfileSwitcher {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/GHelperAutoProfileSwitcher;component/processselectiondialog.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/GHelperAutoProfileSwitcher;V1.0.0.0;component/processselectiondialog.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\ProcessSelectionDialog.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);

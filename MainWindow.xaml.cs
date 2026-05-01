@@ -131,7 +131,7 @@ namespace GHelperAutoProfileSwitcher
 
             var runningProcesses = Process.GetProcesses().Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase);
             
-            TargetMode targetMode = TargetMode.Balanced; // Default
+            TargetMode targetMode = TargetMode.Balanced;
             bool found = false;
 
             foreach (var profile in _profiles)
@@ -231,7 +231,7 @@ namespace GHelperAutoProfileSwitcher
                         string path = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
                         if (!string.IsNullOrEmpty(path))
                         {
-                            key.SetValue("GHelperAutoProfileSwitcher", $"\"{path}\"");
+                            key.SetValue("GHelperAutoProfileSwitcher", $"\"{path}\" -hidden");
                         }
                     }
                     else
