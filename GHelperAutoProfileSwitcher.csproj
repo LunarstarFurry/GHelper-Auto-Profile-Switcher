@@ -10,4 +10,8 @@
     <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Resource Include="icon.ico" />
+  </ItemGroup>
+
 </Project>
