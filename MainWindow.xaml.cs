@@ -49,7 +49,12 @@ namespace GHelperAutoProfileSwitcher
                         string text = _currentMode.ToString().Substring(0, 1);
                         using (Brush textBrush = new SolidBrush(System.Drawing.Color.Black))
                         {
-                            g.DrawString(text, font, textBrush, 3, 1);
+                            StringFormat sf = new StringFormat
+                            {
+                                Alignment = StringAlignment.Center,
+                                LineAlignment = StringAlignment.Center
+                            };
+                            g.DrawString(text, font, textBrush, new RectangleF(0, 0, 16, 16), sf);
                         }
                     }
                 }
@@ -135,7 +140,7 @@ namespace GHelperAutoProfileSwitcher
                 {
                     targetMode = profile.Mode;
                     found = true;
-                    if (targetMode == TargetMode.Turbo) break; // Priority
+                    if (targetMode == TargetMode.Turbo) break;
                 }
             }
 
