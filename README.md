@@ -9,9 +9,6 @@ A lightweight Windows application that automatically switches [G-Helper](https:/
 - **Start with Windows:** Easily configure the app to launch automatically when you boot your PC.
 - **Simple UI:** Add, remove, and manage your app profiles with an intuitive graphical interface.
 
-## How it Works
-The application monitors the list of running processes every few seconds. If it detects a process name that matches one of your configured profiles, it sends the appropriate command (via hotkeys or IPC) to G-Helper to switch the profile. 
-
 ## Requirements
 - Windows OS
 - .NET 8.0 Desktop Runtime
@@ -41,7 +38,7 @@ To build the project yourself:
 3. Check the **Start with Windows** option to ensure it runs continuously in the background.
 4. Minimize the application to the system tray to keep it out of the way.
 
-## Thx Gemini :D
+## Thx Gemini! : D
 
 ## License
 MIT License
