@@ -33,7 +33,16 @@
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                 <CheckBox Name="StartWithWindowsCheckBox" Content="Start with Windows" Click="StartWithWindowsCheckBox_Click"/>
-                <TextBlock Text="Made by Lunarstar &amp; Gemini" FontSize="10" Foreground="Gray" Margin="0,2,0,0" />
+                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                        <ComboBox Name="PauseDurationComboBox" Width="90" Margin="0,0,5,0" Height="22" VerticalContentAlignment="Center">
+                            <ComboBoxItem Content="1 Hour" Tag="1" />
+                            <ComboBoxItem Content="4 Hours" Tag="4" />
+                            <ComboBoxItem Content="8 Hours" Tag="8" />
+                            <ComboBoxItem Content="24 Hours" Tag="24" />
+                            <ComboBoxItem Content="Indefinitely" Tag="0" IsSelected="True" />
+                        </ComboBox>
+                    <Button Name="PauseResumeButton" Content="Pause" Width="60" Height="22" Click="PauseResumeButton_Click" />
+                </StackPanel>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Grid.Column="1">
                 <TextBlock Text="Current Mode: " VerticalAlignment="Center" Margin="0,0,5,0"/>

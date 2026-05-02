@@ -21,6 +21,11 @@ namespace GHelperAutoProfileSwitcher
         private TargetMode _currentMode = TargetMode.Balanced;
         private IntPtr _currentIconHandle = IntPtr.Zero;
 
+        private bool _isPaused = false;
+        private DateTime? _pauseUntil = null;
+        private ToolStripMenuItem? _pauseMenuItem;
+        private ToolStripMenuItem? _resumeMenuItem;
+
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
         extern static bool DestroyIcon(IntPtr handle);
 
@@ -34,11 +39,18 @@ namespace GHelperAutoProfileSwitcher
                 {
                     g.Clear(System.Drawing.Color.Transparent);
                     System.Drawing.Color color = System.Drawing.Color.White;
-                    switch (_currentMode)
+                    if (_isPaused)
                     {
-                        case TargetMode.Silent: color = System.Drawing.Color.DeepSkyBlue; break;
-                        case TargetMode.Balanced: color = System.Drawing.Color.White; break;
-                        case TargetMode.Turbo: color = System.Drawing.Color.Red; break;
+                        color = System.Drawing.Color.Gray;
+                    }
+                    else
+                    {
+                        switch (_currentMode)
+                        {
+                            case TargetMode.Silent: color = System.Drawing.Color.DeepSkyBlue; break;
+                            case TargetMode.Balanced: color = System.Drawing.Color.White; break;
+                            case TargetMode.Turbo: color = System.Drawing.Color.Red; break;
+                        }
                     }
                     using (Brush brush = new SolidBrush(color))
                     {
@@ -46,7 +58,7 @@ namespace GHelperAutoProfileSwitcher
                     }
                     using (System.Drawing.Font font = new System.Drawing.Font("Arial", 8, System.Drawing.FontStyle.Bold))
                     {
-                        string text = _currentMode.ToString().Substring(0, 1);
+                        string text = _isPaused ? "P" : _currentMode.ToString().Substring(0, 1);
                         using (Brush textBrush = new SolidBrush(System.Drawing.Color.Black))
                         {
                             StringFormat sf = new StringFormat
@@ -116,6 +128,20 @@ namespace GHelperAutoProfileSwitcher
                 Show();
                 WindowState = WindowState.Normal;
             });
+
+            _pauseMenuItem = new ToolStripMenuItem("Pause Agent");
+            _pauseMenuItem.DropDownItems.Add("1 Hour", null, (s, e) => PauseAgent(1));
+            _pauseMenuItem.DropDownItems.Add("4 Hours", null, (s, e) => PauseAgent(4));
+            _pauseMenuItem.DropDownItems.Add("8 Hours", null, (s, e) => PauseAgent(8));
+            _pauseMenuItem.DropDownItems.Add("24 Hours", null, (s, e) => PauseAgent(24));
+            _pauseMenuItem.DropDownItems.Add("Indefinitely", null, (s, e) => PauseAgent(0));
+            contextMenu.Items.Add(_pauseMenuItem);
+
+            _resumeMenuItem = new ToolStripMenuItem("Resume Agent");
+            _resumeMenuItem.Click += (s, e) => ResumeAgent();
+            _resumeMenuItem.Visible = false;
+            contextMenu.Items.Add(_resumeMenuItem);
+
             contextMenu.Items.Add("Exit", null, (s, e) => 
             {
                 _notifyIcon.Visible = false;
@@ -127,6 +153,23 @@ namespace GHelperAutoProfileSwitcher
 
         private void Timer_Tick(object? sender, EventArgs e)
         {
+            if (_isPaused)
+            {
+                if (_pauseUntil.HasValue && DateTime.Now >= _pauseUntil.Value)
+                {
+                    ResumeAgent();
+                }
+                else
+                {
+                    if (_pauseUntil.HasValue)
+                    {
+                        var remaining = _pauseUntil.Value - DateTime.Now;
+                        PauseDurationComboBox.Text = $"{(int)remaining.TotalHours:D2}h {remaining.Minutes:D2}m";
+                    }
+                    return;
+                }
+            }
+
             if (_profiles.Count == 0) return;
 
             var runningProcesses = Process.GetProcesses().Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -238,6 +281,79 @@ namespace GHelperAutoProfileSwitcher
                     {
                         key.DeleteValue("GHelperAutoProfileSwitcher", false);
                     }
+                }
+            }
+        }
+
+        private int _lastSelectedPauseIndex = 4; // Default to 'Indefinitely'
+
+        private void PauseAgent(double hours)
+        {
+            _lastSelectedPauseIndex = PauseDurationComboBox.SelectedIndex;
+            _isPaused = true;
+            if (hours > 0)
+                _pauseUntil = DateTime.Now.AddHours(hours);
+            else
+                _pauseUntil = null;
+            
+            UpdatePauseUI();
+            UpdateTrayIcon();
+        }
+
+        private void ResumeAgent()
+        {
+            _isPaused = false;
+            _pauseUntil = null;
+            
+            UpdatePauseUI();
+            UpdateTrayIcon();
+            PauseDurationComboBox.SelectedIndex = _lastSelectedPauseIndex;
+        }
+
+        private void UpdatePauseUI()
+        {
+            if (_pauseMenuItem != null) _pauseMenuItem.Visible = !_isPaused;
+            if (_resumeMenuItem != null) _resumeMenuItem.Visible = _isPaused;
+            
+            if (_isPaused)
+            {
+                PauseResumeButton.Content = "Resume";
+                PauseDurationComboBox.IsEditable = true;
+                PauseDurationComboBox.IsReadOnly = true;
+                if (_pauseUntil.HasValue)
+                {
+                    var remaining = _pauseUntil.Value - DateTime.Now;
+                    PauseDurationComboBox.Text = $"{(int)remaining.TotalHours:D2}h {remaining.Minutes:D2}m";
+                }
+                else
+                {
+                    PauseDurationComboBox.Text = "Indefinite";
+                }
+            }
+            else
+            {
+                PauseResumeButton.Content = "Pause";
+                PauseDurationComboBox.IsEditable = false;
+                PauseDurationComboBox.IsReadOnly = false;
+            }
+        }
+
+        private void PauseResumeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isPaused)
+            {
+                ResumeAgent();
+            }
+            else
+            {
+                if (PauseDurationComboBox.SelectedItem is System.Windows.Controls.ComboBoxItem item && 
+                    item.Tag != null && double.TryParse(item.Tag.ToString(), out double hours))
+                {
+                    PauseAgent(hours);
+                }
+                else
+                {
+                    PauseAgent(0);
                 }
             }
         }

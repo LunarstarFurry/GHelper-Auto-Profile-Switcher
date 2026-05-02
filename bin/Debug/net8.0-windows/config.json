@@ -6,5 +6,9 @@
   {
     "ProcessName": "DyingLightGame",
     "Mode": "Turbo"
+  },
+  {
+    "ProcessName": "oriDE",
+    "Mode": "Turbo"
   }
 ]
