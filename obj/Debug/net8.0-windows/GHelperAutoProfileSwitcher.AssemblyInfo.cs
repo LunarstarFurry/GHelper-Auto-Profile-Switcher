@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GHelperAutoProfileSwitcher")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0c5f9f2884d2c39c5892266854377a4af80aac66")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a78717ec25e1f801723eb9fa3172e892f4b91a9d")]
 [assembly: System.Reflection.AssemblyProductAttribute("GHelperAutoProfileSwitcher")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GHelperAutoProfileSwitcher")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
