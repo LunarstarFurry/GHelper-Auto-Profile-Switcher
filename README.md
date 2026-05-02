@@ -8,6 +8,7 @@ A lightweight Windows application that automatically switches [G-Helper](https:/
 - **System Tray Integration:** Runs quietly in the background, accessible via the system tray.
 - **Start with Windows:** Easily configure the app to launch automatically when you boot your PC.
 - **Simple UI:** Add, remove, and manage your app profiles with an intuitive graphical interface.
+- **Pause Timer:** Allow to Temporary / Permanatly pause the agent from working without closing it
 
 ## Requirements
 - Windows OS
