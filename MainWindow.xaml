@@ -34,6 +34,10 @@
             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                 <CheckBox Name="StartWithWindowsCheckBox" Content="Start with Windows" Click="StartWithWindowsCheckBox_Click"/>
                 <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                    <TextBlock Text="Default Profile:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox Name="DefaultModeComboBox" Width="90" Height="22" VerticalContentAlignment="Center" SelectionChanged="DefaultModeComboBox_SelectionChanged" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                         <ComboBox Name="PauseDurationComboBox" Width="90" Margin="0,0,5,0" Height="22" VerticalContentAlignment="Center">
                             <ComboBoxItem Content="1 Hour" Tag="1" />
                             <ComboBoxItem Content="4 Hours" Tag="4" />

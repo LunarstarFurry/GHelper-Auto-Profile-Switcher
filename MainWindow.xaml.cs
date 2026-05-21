@@ -16,6 +16,7 @@ namespace GHelperAutoProfileSwitcher
     public partial class MainWindow : Window
     {
         private ObservableCollection<AppProfile> _profiles;
+        private TargetMode _defaultMode = TargetMode.Balanced;
         private DispatcherTimer _timer;
         private NotifyIcon _notifyIcon;
         private TargetMode _currentMode = TargetMode.Balanced;
@@ -96,8 +97,13 @@ namespace GHelperAutoProfileSwitcher
             
             ModeColumn.ItemsSource = Enum.GetValues(typeof(TargetMode));
 
-            _profiles = new ObservableCollection<AppProfile>(ConfigManager.LoadConfig());
+            var config = ConfigManager.LoadConfig();
+            _defaultMode = config.DefaultMode;
+            _profiles = new ObservableCollection<AppProfile>(config.Profiles);
             ProfilesGrid.ItemsSource = _profiles;
+
+            DefaultModeComboBox.ItemsSource = Enum.GetValues(typeof(TargetMode));
+            DefaultModeComboBox.SelectedItem = _defaultMode;
 
             SetupTrayIcon();
             CheckStartWithWindows();
@@ -170,30 +176,45 @@ namespace GHelperAutoProfileSwitcher
                 }
             }
 
-            if (_profiles.Count == 0) return;
-
             var runningProcesses = Process.GetProcesses().Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase);
             
-            TargetMode targetMode = TargetMode.Balanced;
-            bool found = false;
+            TargetMode targetMode = _defaultMode;
 
             foreach (var profile in _profiles)
             {
                 if (runningProcesses.Contains(profile.ProcessName))
                 {
                     targetMode = profile.Mode;
-                    found = true;
                     if (targetMode == TargetMode.Turbo) break;
                 }
             }
 
-            if (_currentMode != targetMode || (!found && _currentMode != TargetMode.Balanced))
+            if (_currentMode != targetMode)
             {
                 _currentMode = targetMode;
                 CurrentModeText.Text = _currentMode.ToString();
                 GHelperHotkeys.SetMode(_currentMode);
                 UpdateTrayIcon();
             }
+        }
+
+        private void DefaultModeComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (DefaultModeComboBox.SelectedItem is TargetMode mode)
+            {
+                _defaultMode = mode;
+                SaveConfig();
+            }
+        }
+
+        private void SaveConfig()
+        {
+            var config = new AppConfig
+            {
+                DefaultMode = _defaultMode,
+                Profiles = _profiles.ToList()
+            };
+            ConfigManager.SaveConfig(config);
         }
 
         private void AddCurrentApp_Click(object sender, RoutedEventArgs e)
@@ -218,7 +239,7 @@ namespace GHelperAutoProfileSwitcher
                 if (!string.IsNullOrEmpty(selectedProcess) && !_profiles.Any(p => p.ProcessName.Equals(selectedProcess, StringComparison.OrdinalIgnoreCase)))
                 {
                     _profiles.Add(new AppProfile { ProcessName = selectedProcess, Mode = TargetMode.Turbo });
-                    ConfigManager.SaveConfig(_profiles.ToList());
+                    SaveConfig();
                 }
             }
         }
@@ -228,13 +249,13 @@ namespace GHelperAutoProfileSwitcher
             if ((sender as System.Windows.Controls.Button)?.DataContext is AppProfile profile)
             {
                 _profiles.Remove(profile);
-                ConfigManager.SaveConfig(_profiles.ToList());
+                SaveConfig();
             }
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)
         {
-            ConfigManager.SaveConfig(_profiles.ToList());
+            SaveConfig();
             MessageBox.Show("Configuration saved.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 

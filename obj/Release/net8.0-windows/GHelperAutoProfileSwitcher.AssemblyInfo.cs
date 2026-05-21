@@ -11,7 +11,7 @@ using System;
 using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("GHelperAutoProfileSwitcher")]
-[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b9f4a8ff4adb9d0e6e7fe0ba7f182660c03447b8")]
 [assembly: System.Reflection.AssemblyProductAttribute("GHelperAutoProfileSwitcher")]

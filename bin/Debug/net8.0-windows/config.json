@@ -1,14 +1,17 @@
-[
-  {
-    "ProcessName": "VRChat",
-    "Mode": "Turbo"
-  },
-  {
-    "ProcessName": "DyingLightGame",
-    "Mode": "Turbo"
-  },
-  {
-    "ProcessName": "oriDE",
-    "Mode": "Turbo"
-  }
-]
+{
+  "DefaultMode": "Balanced",
+  "Profiles": [
+    {
+      "ProcessName": "VRChat",
+      "Mode": "Turbo"
+    },
+    {
+      "ProcessName": "DyingLightGame",
+      "Mode": "Turbo"
+    },
+    {
+      "ProcessName": "oriDE",
+      "Mode": "Turbo"
+    }
+  ]
+}
