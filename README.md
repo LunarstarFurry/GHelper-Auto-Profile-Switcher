@@ -39,7 +39,7 @@ To build the project yourself:
 3. Check the **Start with Windows** option to ensure it runs continuously in the background.
 4. Minimize the application to the system tray to keep it out of the way.
 
-##ScreenShots
+## ScreenShots
 <img width="734" height="555" alt="image" src="https://github.com/user-attachments/assets/6bb8905e-22fd-43d8-94c6-1fd8c360632e" />
 
 <img width="734" height="555" alt="image" src="https://github.com/user-attachments/assets/6c6967ad-754c-413b-a30e-1ad01056efd4" />
