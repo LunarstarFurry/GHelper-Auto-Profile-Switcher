@@ -7,6 +7,16 @@ on:
       - 'v*'
   pull_request:
     branches: [ "main", "master" ]
+  workflow_dispatch:
+    inputs:
+      build_config:
+        description: 'Build configuration'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
 
 permissions:
   contents: read
@@ -27,12 +37,12 @@ jobs:
       run: dotnet restore GHelperAutoProfileSwitcher.csproj
       
     - name: Publish
-      run: dotnet publish GHelperAutoProfileSwitcher.csproj --no-restore --configuration Release -o ./publish
+      run: dotnet publish GHelperAutoProfileSwitcher.csproj --no-restore --configuration ${{ inputs.build_config || 'Release' }} -o ./publish
       
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: GHelperAutoProfileSwitcher
+        name: GHelperAutoProfileSwitcher-${{ inputs.build_config || 'Release' }}
         path: ./publish/
 
   release:
@@ -45,7 +55,7 @@ jobs:
     - name: Download Artifact
       uses: actions/download-artifact@v4
       with:
-        name: GHelperAutoProfileSwitcher
+        name: GHelperAutoProfileSwitcher-Release
         path: ./publish/
         
     - name: Zip files
