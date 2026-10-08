@@ -32,6 +32,14 @@ namespace GHelperAutoProfileSwitcher
         {
             DialogResult = false;
         }
+
+        private void ProcessListBox_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (ProcessListBox.SelectedItem is ProcessInfo)
+            {
+                Ok_Click(sender, e);
+            }
+        }
     }
 
     public class ProcessInfo

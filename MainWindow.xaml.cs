@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Linq;
-using System.Windows;
-using System.Windows.Threading;
 using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
@@ -15,11 +17,12 @@ namespace GHelperAutoProfileSwitcher
 {
     public partial class MainWindow : Window
     {
-        private ObservableCollection<AppProfile> _profiles;
+        private ObservableCollection<AppProfile> _profiles = new();
         private TargetMode _defaultMode = TargetMode.Balanced;
-        private DispatcherTimer _timer;
-        private NotifyIcon _notifyIcon;
+        private DispatcherTimer _timer = null!;
+        private NotifyIcon _notifyIcon = null!;
         private TargetMode _currentMode = TargetMode.Balanced;
+        private TargetMode _lastTargetMode = TargetMode.Balanced;
         private IntPtr _currentIconHandle = IntPtr.Zero;
 
         private bool _isPaused = false;
@@ -27,8 +30,13 @@ namespace GHelperAutoProfileSwitcher
         private ToolStripMenuItem? _pauseMenuItem;
         private ToolStripMenuItem? _resumeMenuItem;
 
+        private bool _isSwitching = false;
+        private int _retryCount = 0;
+        private const int MaxRetries = 3;
+        private int _lastSelectedPauseIndex = 4; // Default to 'Indefinitely'
+
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
-        extern static bool DestroyIcon(IntPtr handle);
+        private static extern bool DestroyIcon(IntPtr handle);
 
         private void UpdateTrayIcon()
         {
@@ -101,9 +109,24 @@ namespace GHelperAutoProfileSwitcher
             _defaultMode = config.DefaultMode;
             _profiles = new ObservableCollection<AppProfile>(config.Profiles);
             ProfilesGrid.ItemsSource = _profiles;
+            ProfilesGrid.CellEditEnding += (s, e) => Dispatcher.BeginInvoke(new Action(SaveConfig));
 
             DefaultModeComboBox.ItemsSource = Enum.GetValues(typeof(TargetMode));
             DefaultModeComboBox.SelectedItem = _defaultMode;
+
+            // Sync initial state with G-Helper if readable
+            var initialGHelperMode = GHelperStatus.GetActiveGHelperMode();
+            if (initialGHelperMode.HasValue)
+            {
+                _currentMode = initialGHelperMode.Value;
+                _lastTargetMode = _currentMode;
+            }
+            else
+            {
+                _currentMode = _defaultMode;
+                _lastTargetMode = _defaultMode;
+            }
+            CurrentModeText.Text = _currentMode.ToString();
 
             SetupTrayIcon();
             CheckStartWithWindows();
@@ -150,7 +173,14 @@ namespace GHelperAutoProfileSwitcher
 
             contextMenu.Items.Add("Exit", null, (s, e) => 
             {
+                _timer.Stop();
                 _notifyIcon.Visible = false;
+                _notifyIcon.Dispose();
+                if (_currentIconHandle != IntPtr.Zero)
+                {
+                    DestroyIcon(_currentIconHandle);
+                    _currentIconHandle = IntPtr.Zero;
+                }
                 Application.Current.Shutdown();
             });
 
@@ -176,10 +206,22 @@ namespace GHelperAutoProfileSwitcher
                 }
             }
 
-            var runningProcesses = Process.GetProcesses().Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Get running processes safely and dispose process handles
+            HashSet<string> runningProcesses;
+            var processes = Process.GetProcesses();
+            try
+            {
+                runningProcesses = processes.Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+            finally
+            {
+                foreach (var p in processes)
+                {
+                    p.Dispose();
+                }
+            }
             
             TargetMode targetMode = _defaultMode;
-
             foreach (var profile in _profiles)
             {
                 if (runningProcesses.Contains(profile.ProcessName))
@@ -189,12 +231,101 @@ namespace GHelperAutoProfileSwitcher
                 }
             }
 
-            if (_currentMode != targetMode)
+            var actualGHelperMode = GHelperStatus.GetActiveGHelperMode();
+
+            // Scenario 1: Target mode changed (e.g. app launched or closed)
+            if (targetMode != _lastTargetMode)
             {
-                _currentMode = targetMode;
-                CurrentModeText.Text = _currentMode.ToString();
-                GHelperHotkeys.SetMode(_currentMode);
-                UpdateTrayIcon();
+                bool isAppExit = (targetMode == _defaultMode);
+                _lastTargetMode = targetMode;
+                _retryCount = 0;
+                _ = ApplyModeChangeAsync(targetMode, isAppExit);
+            }
+            // Scenario 2: Target mode hasn't changed, but G-Helper is desynced (e.g. key was missed on app exit)
+            else if (actualGHelperMode.HasValue && actualGHelperMode.Value != targetMode)
+            {
+                if (_retryCount < MaxRetries)
+                {
+                    _retryCount++;
+                    _ = ApplyModeChangeAsync(targetMode, isAppExit: false);
+                }
+            }
+            // Scenario 3: G-Helper matches target mode
+            else if (actualGHelperMode.HasValue && actualGHelperMode.Value == targetMode)
+            {
+                _retryCount = 0;
+                if (_currentMode != targetMode)
+                {
+                    _currentMode = targetMode;
+                    CurrentModeText.Text = _currentMode.ToString();
+                    UpdateTrayIcon();
+                }
+            }
+        }
+
+        private async Task ApplyModeChangeAsync(TargetMode targetMode, bool isAppExit)
+        {
+            if (_isSwitching) return;
+            _isSwitching = true;
+
+            try
+            {
+                // When an app exits, wait 300ms for DirectX / exclusive fullscreen / resolution switch to settle
+                if (isAppExit)
+                {
+                    await Task.Delay(300);
+                }
+
+                await GHelperHotkeys.SetModeAsync(targetMode);
+
+                // Give G-Helper a brief window to process the hotkey and write state
+                await Task.Delay(700);
+
+                var actual = GHelperStatus.GetActiveGHelperMode();
+                if (actual.HasValue)
+                {
+                    if (actual.Value == targetMode)
+                    {
+                        _currentMode = targetMode;
+                        CurrentModeText.Text = _currentMode.ToString();
+                        UpdateTrayIcon();
+                        _retryCount = 0;
+                    }
+                    else if (_retryCount < MaxRetries)
+                    {
+                        // Retry sending the hotkey if G-Helper didn't catch the first pulse
+                        _retryCount++;
+                        await GHelperHotkeys.SetModeAsync(targetMode);
+                        await Task.Delay(700);
+
+                        var retryActual = GHelperStatus.GetActiveGHelperMode();
+                        if (retryActual.HasValue && retryActual.Value == targetMode)
+                        {
+                            _currentMode = targetMode;
+                            CurrentModeText.Text = _currentMode.ToString();
+                            UpdateTrayIcon();
+                            _retryCount = 0;
+                        }
+                    }
+                }
+                else
+                {
+                    // Fallback when config cannot be read directly
+                    _currentMode = targetMode;
+                    CurrentModeText.Text = _currentMode.ToString();
+                    UpdateTrayIcon();
+
+                    if (isAppExit)
+                    {
+                        // Send a confirmation pulse 1s later to guarantee focus transition didn't swallow it
+                        await Task.Delay(1000);
+                        await GHelperHotkeys.SetModeAsync(targetMode);
+                    }
+                }
+            }
+            finally
+            {
+                _isSwitching = false;
             }
         }
 
@@ -204,6 +335,7 @@ namespace GHelperAutoProfileSwitcher
             {
                 _defaultMode = mode;
                 SaveConfig();
+                Timer_Tick(null, EventArgs.Empty);
             }
         }
 
@@ -219,17 +351,34 @@ namespace GHelperAutoProfileSwitcher
 
         private void AddCurrentApp_Click(object sender, RoutedEventArgs e)
         {
-            var runningApps = Process.GetProcesses()
-                                     .Where(p => !string.IsNullOrEmpty(p.MainWindowTitle))
-                                     .Select(p => new ProcessInfo 
-                                     { 
-                                         ProcessName = p.ProcessName, 
-                                         WindowTitle = p.MainWindowTitle 
-                                     })
-                                     .GroupBy(p => p.ProcessName)
-                                     .Select(g => g.First())
-                                     .OrderBy(p => p.ProcessName)
-                                     .ToList();
+            var currentAppExe = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
+            var processes = Process.GetProcesses();
+            List<ProcessInfo> runningApps;
+
+            try
+            {
+                runningApps = processes
+                    .Where(p => !string.IsNullOrEmpty(p.MainWindowTitle))
+                    .Where(p => !p.ProcessName.Equals(currentAppExe, StringComparison.OrdinalIgnoreCase) &&
+                                !p.ProcessName.Equals("GHelper", StringComparison.OrdinalIgnoreCase))
+                    .Where(p => !_profiles.Any(prof => prof.ProcessName.Equals(p.ProcessName, StringComparison.OrdinalIgnoreCase)))
+                    .Select(p => new ProcessInfo 
+                    { 
+                        ProcessName = p.ProcessName, 
+                        WindowTitle = p.MainWindowTitle 
+                    })
+                    .GroupBy(p => p.ProcessName)
+                    .Select(g => g.First())
+                    .OrderBy(p => p.ProcessName)
+                    .ToList();
+            }
+            finally
+            {
+                foreach (var p in processes)
+                {
+                    p.Dispose();
+                }
+            }
 
             var dialog = new ProcessSelectionDialog(runningApps);
             dialog.Owner = this;
@@ -240,6 +389,7 @@ namespace GHelperAutoProfileSwitcher
                 {
                     _profiles.Add(new AppProfile { ProcessName = selectedProcess, Mode = TargetMode.Turbo });
                     SaveConfig();
+                    Timer_Tick(null, EventArgs.Empty);
                 }
             }
         }
@@ -250,6 +400,7 @@ namespace GHelperAutoProfileSwitcher
             {
                 _profiles.Remove(profile);
                 SaveConfig();
+                Timer_Tick(null, EventArgs.Empty);
             }
         }
 
@@ -292,7 +443,7 @@ namespace GHelperAutoProfileSwitcher
                 {
                     if (StartWithWindowsCheckBox.IsChecked == true)
                     {
-                        string path = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+                        string path = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
                         if (!string.IsNullOrEmpty(path))
                         {
                             key.SetValue("GHelperAutoProfileSwitcher", $"\"{path}\" -hidden");
@@ -305,8 +456,6 @@ namespace GHelperAutoProfileSwitcher
                 }
             }
         }
-
-        private int _lastSelectedPauseIndex = 4; // Default to 'Indefinitely'
 
         private void PauseAgent(double hours)
         {
@@ -328,7 +477,17 @@ namespace GHelperAutoProfileSwitcher
             
             UpdatePauseUI();
             UpdateTrayIcon();
-            PauseDurationComboBox.SelectedIndex = _lastSelectedPauseIndex;
+
+            if (_lastSelectedPauseIndex >= 0 && _lastSelectedPauseIndex < PauseDurationComboBox.Items.Count)
+            {
+                PauseDurationComboBox.SelectedIndex = _lastSelectedPauseIndex;
+            }
+            else
+            {
+                PauseDurationComboBox.SelectedIndex = 4;
+            }
+
+            Timer_Tick(null, EventArgs.Empty);
         }
 
         private void UpdatePauseUI()
