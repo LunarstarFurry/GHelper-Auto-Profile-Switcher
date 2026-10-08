@@ -85,7 +85,8 @@ namespace GHelperAutoProfileSwitcher
 
                 var oldIcon = _notifyIcon.Icon;
                 _notifyIcon.Icon = newIcon;
-                _notifyIcon.Text = $"G-Helper - {_currentMode}";
+                string adminSuffix = IsAdministrator() ? " (Admin)" : string.Empty;
+                _notifyIcon.Text = $"G-Helper - {_currentMode}{adminSuffix}";
 
                 if (_currentIconHandle != IntPtr.Zero)
                 {
@@ -128,6 +129,16 @@ namespace GHelperAutoProfileSwitcher
             }
             CurrentModeText.Text = _currentMode.ToString();
 
+            if (IsAdministrator())
+            {
+                Title += " [Administrator]";
+                ElevateButton.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ElevateButton.Visibility = Visibility.Visible;
+            }
+
             SetupTrayIcon();
             CheckStartWithWindows();
 
@@ -157,6 +168,11 @@ namespace GHelperAutoProfileSwitcher
                 Show();
                 WindowState = WindowState.Normal;
             });
+
+            if (!IsAdministrator())
+            {
+                contextMenu.Items.Add("Restart as Administrator", null, (s, e) => RestartAsAdmin());
+            }
 
             _pauseMenuItem = new ToolStripMenuItem("Pause Agent");
             _pauseMenuItem.DropDownItems.Add("1 Hour", null, (s, e) => PauseAgent(1));
@@ -536,6 +552,57 @@ namespace GHelperAutoProfileSwitcher
                     PauseAgent(0);
                 }
             }
+        }
+
+        private static bool IsAdministrator()
+        {
+            try
+            {
+                using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                var principal = new System.Security.Principal.WindowsPrincipal(identity);
+                return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void RestartAsAdmin()
+        {
+            var exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrEmpty(exePath)) return;
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = exePath,
+                UseShellExecute = true,
+                Verb = "runas",
+                Arguments = (WindowState == WindowState.Minimized || !IsVisible) ? "-hidden" : string.Empty
+            };
+
+            try
+            {
+                Process.Start(startInfo);
+                _timer.Stop();
+                _notifyIcon.Visible = false;
+                _notifyIcon.Dispose();
+                if (_currentIconHandle != IntPtr.Zero)
+                {
+                    DestroyIcon(_currentIconHandle);
+                    _currentIconHandle = IntPtr.Zero;
+                }
+                Application.Current.Shutdown();
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                // User cancelled UAC prompt
+            }
+        }
+
+        private void ElevateButton_Click(object sender, RoutedEventArgs e)
+        {
+            RestartAsAdmin();
         }
     }
 }
