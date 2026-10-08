@@ -34,7 +34,7 @@
             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
                     <CheckBox Name="StartWithWindowsCheckBox" Content="Start with Windows" Click="StartWithWindowsCheckBox_Click" VerticalAlignment="Center"/>
-                    <Button Name="ElevateButton" Content="🛡 Run as Admin" Margin="10,0,0,0" Padding="5,1" Height="22" Visibility="Collapsed" Click="ElevateButton_Click" VerticalAlignment="Center" ToolTip="Restart with Administrator privileges if your games run elevated."/>
+                    <Button x:Name="ElevateButton" Content="🛡 Run as Admin" Margin="10,0,0,0" Padding="5,1" Height="22" Visibility="Collapsed" Click="ElevateButton_Click" VerticalAlignment="Center" ToolTip="Restart with Administrator privileges if your games run elevated."/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                     <TextBlock Text="Default Profile:" VerticalAlignment="Center" Margin="0,0,5,0"/>
