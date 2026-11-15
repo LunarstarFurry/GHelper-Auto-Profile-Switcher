@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using System.Drawing;
 using System.Windows.Forms;
@@ -21,6 +23,8 @@ namespace GHelperAutoProfileSwitcher
         private NotifyIcon _notifyIcon;
         private TargetMode _currentMode = TargetMode.Balanced;
         private IntPtr _currentIconHandle = IntPtr.Zero;
+        private bool _isSwitching = false;
+        private bool _hadMatchedProfile = false;
 
         private bool _isPaused = false;
         private DateTime? _pauseUntil = null;
@@ -105,6 +109,9 @@ namespace GHelperAutoProfileSwitcher
             DefaultModeComboBox.ItemsSource = Enum.GetValues(typeof(TargetMode));
             DefaultModeComboBox.SelectedItem = _defaultMode;
 
+            _currentMode = GHelperStatus.GetCurrentMode() ?? _defaultMode;
+            CurrentModeText.Text = _currentMode.ToString();
+
             SetupTrayIcon();
             CheckStartWithWindows();
 
@@ -150,14 +157,62 @@ namespace GHelperAutoProfileSwitcher
 
             contextMenu.Items.Add("Exit", null, (s, e) => 
             {
-                _notifyIcon.Visible = false;
+                CleanupTrayIcon();
                 Application.Current.Shutdown();
             });
 
             _notifyIcon.ContextMenuStrip = contextMenu;
         }
 
-        private void Timer_Tick(object? sender, EventArgs e)
+        private void CleanupTrayIcon()
+        {
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.Visible = false;
+                var oldIcon = _notifyIcon.Icon;
+                _notifyIcon.Icon = null;
+                if (oldIcon != null && oldIcon != SystemIcons.Application)
+                {
+                    oldIcon.Dispose();
+                }
+                _notifyIcon.Dispose();
+            }
+
+            if (_currentIconHandle != IntPtr.Zero)
+            {
+                DestroyIcon(_currentIconHandle);
+                _currentIconHandle = IntPtr.Zero;
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            CleanupTrayIcon();
+            base.OnClosed(e);
+        }
+
+        private static HashSet<string> GetRunningProcessNames()
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Process[] processes = Process.GetProcesses();
+            try
+            {
+                foreach (var proc in processes)
+                {
+                    names.Add(proc.ProcessName);
+                }
+            }
+            finally
+            {
+                foreach (var proc in processes)
+                {
+                    proc.Dispose();
+                }
+            }
+            return names;
+        }
+
+        private async void Timer_Tick(object? sender, EventArgs e)
         {
             if (_isPaused)
             {
@@ -176,25 +231,68 @@ namespace GHelperAutoProfileSwitcher
                 }
             }
 
-            var runningProcesses = Process.GetProcesses().Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            
+            if (_isSwitching) return;
+
+            var runningProcesses = GetRunningProcessNames();
+
             TargetMode targetMode = _defaultMode;
+            bool hasMatchedProfile = false;
 
             foreach (var profile in _profiles)
             {
                 if (runningProcesses.Contains(profile.ProcessName))
                 {
+                    hasMatchedProfile = true;
                     targetMode = profile.Mode;
                     if (targetMode == TargetMode.Turbo) break;
                 }
             }
 
-            if (_currentMode != targetMode)
+            bool isAppExit = _hadMatchedProfile && !hasMatchedProfile;
+            _hadMatchedProfile = hasMatchedProfile;
+
+            TargetMode? actualMode = GHelperStatus.GetCurrentMode();
+            bool needsSwitch = _currentMode != targetMode || (actualMode.HasValue && actualMode.Value != targetMode);
+
+            if (needsSwitch)
             {
-                _currentMode = targetMode;
+                await ApplyModeChangeAsync(targetMode, isAppExit);
+            }
+        }
+
+        private async Task ApplyModeChangeAsync(TargetMode targetMode, bool isAppExit)
+        {
+            _isSwitching = true;
+            try
+            {
+                if (isAppExit)
+                {
+                    // Allow exclusive fullscreen / DirectX resolution changes to settle
+                    await Task.Delay(300);
+                }
+
+                TargetMode? verifiedMode = null;
+                const int maxAttempts = 3;
+
+                for (int attempt = 1; attempt <= maxAttempts; attempt++)
+                {
+                    await GHelperHotkeys.SetModeAsync(targetMode);
+                    await Task.Delay(700);
+
+                    verifiedMode = GHelperStatus.GetCurrentMode();
+                    if (!verifiedMode.HasValue || verifiedMode.Value == targetMode)
+                    {
+                        break;
+                    }
+                }
+
+                _currentMode = verifiedMode ?? targetMode;
                 CurrentModeText.Text = _currentMode.ToString();
-                GHelperHotkeys.SetMode(_currentMode);
                 UpdateTrayIcon();
+            }
+            finally
+            {
+                _isSwitching = false;
             }
         }
 
@@ -219,17 +317,33 @@ namespace GHelperAutoProfileSwitcher
 
         private void AddCurrentApp_Click(object sender, RoutedEventArgs e)
         {
-            var runningApps = Process.GetProcesses()
-                                     .Where(p => !string.IsNullOrEmpty(p.MainWindowTitle))
-                                     .Select(p => new ProcessInfo 
-                                     { 
-                                         ProcessName = p.ProcessName, 
-                                         WindowTitle = p.MainWindowTitle 
-                                     })
-                                     .GroupBy(p => p.ProcessName)
-                                     .Select(g => g.First())
-                                     .OrderBy(p => p.ProcessName)
-                                     .ToList();
+            var existingProcesses = _profiles.Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var runningApps = new List<ProcessInfo>();
+            Process[] processes = Process.GetProcesses();
+            try
+            {
+                runningApps = processes
+                    .Where(p => !string.IsNullOrEmpty(p.MainWindowTitle)
+                                && !p.ProcessName.Equals("GHelper", StringComparison.OrdinalIgnoreCase)
+                                && !p.ProcessName.Equals("GHelperAutoProfileSwitcher", StringComparison.OrdinalIgnoreCase)
+                                && !existingProcesses.Contains(p.ProcessName))
+                    .Select(p => new ProcessInfo
+                    {
+                        ProcessName = p.ProcessName,
+                        WindowTitle = p.MainWindowTitle
+                    })
+                    .GroupBy(p => p.ProcessName, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .OrderBy(p => p.ProcessName)
+                    .ToList();
+            }
+            finally
+            {
+                foreach (var proc in processes)
+                {
+                    proc.Dispose();
+                }
+            }
 
             var dialog = new ProcessSelectionDialog(runningApps);
             dialog.Owner = this;
@@ -241,6 +355,14 @@ namespace GHelperAutoProfileSwitcher
                     _profiles.Add(new AppProfile { ProcessName = selectedProcess, Mode = TargetMode.Turbo });
                     SaveConfig();
                 }
+            }
+        }
+
+        private void ProfilesGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        {
+            if (e.EditAction == DataGridEditAction.Commit)
+            {
+                Dispatcher.BeginInvoke(new Action(SaveConfig), DispatcherPriority.Background);
             }
         }
 
@@ -292,7 +414,8 @@ namespace GHelperAutoProfileSwitcher
                 {
                     if (StartWithWindowsCheckBox.IsChecked == true)
                     {
-                        string path = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+                        using var currentProc = Process.GetCurrentProcess();
+                        string path = currentProc.MainModule?.FileName ?? string.Empty;
                         if (!string.IsNullOrEmpty(path))
                         {
                             key.SetValue("GHelperAutoProfileSwitcher", $"\"{path}\" -hidden");

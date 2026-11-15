@@ -8,7 +8,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         
-        <ListBox Name="ProcessListBox" Grid.Row="0" Margin="0,0,0,10" />
+        <ListBox Name="ProcessListBox" Grid.Row="0" Margin="0,0,0,10" MouseDoubleClick="ProcessListBox_MouseDoubleClick" />
         
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="OK" Width="60" Margin="0,0,10,0" Click="Ok_Click" />

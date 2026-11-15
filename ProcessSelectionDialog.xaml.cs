@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Windows;
-using System.Linq;
+using System.Windows.Input;
 
 namespace GHelperAutoProfileSwitcher
 {
@@ -15,12 +15,25 @@ namespace GHelperAutoProfileSwitcher
             ProcessListBox.DisplayMemberPath = "DisplayName";
         }
 
-        private void Ok_Click(object sender, RoutedEventArgs e)
+        private void ConfirmSelection()
         {
             if (ProcessListBox.SelectedItem is ProcessInfo info)
             {
                 SelectedProcess = info.ProcessName;
                 DialogResult = true;
+            }
+        }
+
+        private void ProcessListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            ConfirmSelection();
+        }
+
+        private void Ok_Click(object sender, RoutedEventArgs e)
+        {
+            if (ProcessListBox.SelectedItem is ProcessInfo)
+            {
+                ConfirmSelection();
             }
             else
             {
