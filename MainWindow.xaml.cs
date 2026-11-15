@@ -8,6 +8,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using Application = System.Windows.Application;
@@ -20,7 +22,7 @@ namespace GHelperAutoProfileSwitcher
         private ObservableCollection<AppProfile> _profiles;
         private TargetMode _defaultMode = TargetMode.Balanced;
         private DispatcherTimer _timer;
-        private NotifyIcon _notifyIcon;
+        private NotifyIcon? _notifyIcon;
         private TargetMode _currentMode = TargetMode.Balanced;
         private IntPtr _currentIconHandle = IntPtr.Zero;
         private bool _isSwitching = false;
@@ -34,54 +36,126 @@ namespace GHelperAutoProfileSwitcher
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
         extern static bool DestroyIcon(IntPtr handle);
 
+        private static GraphicsPath CreateRoundedRectPath(RectangleF rect, float radius)
+        {
+            float d = radius * 2f;
+            var path = new GraphicsPath();
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
         private void UpdateTrayIcon()
         {
-            int width = 16;
-            int height = 16;
-            using (Bitmap bitmap = new Bitmap(width, height))
+            if (_notifyIcon == null) return;
+            const int size = 32;
+            using (Bitmap bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
             {
                 using (Graphics g = Graphics.FromImage(bitmap))
                 {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
                     g.Clear(System.Drawing.Color.Transparent);
-                    System.Drawing.Color color = System.Drawing.Color.White;
+
+                    System.Drawing.Color topColor;
+                    System.Drawing.Color bottomColor;
+                    System.Drawing.Color borderColor;
+                    System.Drawing.Color textColor = System.Drawing.Color.White;
+
                     if (_isPaused)
                     {
-                        color = System.Drawing.Color.Gray;
+                        topColor = System.Drawing.Color.FromArgb(110, 118, 129);
+                        bottomColor = System.Drawing.Color.FromArgb(66, 72, 82);
+                        borderColor = System.Drawing.Color.FromArgb(170, 178, 189);
                     }
                     else
                     {
                         switch (_currentMode)
                         {
-                            case TargetMode.Silent: color = System.Drawing.Color.DeepSkyBlue; break;
-                            case TargetMode.Balanced: color = System.Drawing.Color.White; break;
-                            case TargetMode.Turbo: color = System.Drawing.Color.Red; break;
+                            case TargetMode.Silent:
+                                topColor = System.Drawing.Color.FromArgb(41, 182, 246);
+                                bottomColor = System.Drawing.Color.FromArgb(2, 119, 189);
+                                borderColor = System.Drawing.Color.FromArgb(144, 218, 252);
+                                break;
+                            case TargetMode.Turbo:
+                                topColor = System.Drawing.Color.FromArgb(255, 82, 82);
+                                bottomColor = System.Drawing.Color.FromArgb(183, 28, 28);
+                                borderColor = System.Drawing.Color.FromArgb(255, 158, 158);
+                                break;
+                            default: // Balanced
+                                topColor = System.Drawing.Color.FromArgb(255, 255, 255);
+                                bottomColor = System.Drawing.Color.FromArgb(212, 220, 232);
+                                borderColor = System.Drawing.Color.FromArgb(76, 86, 106);
+                                textColor = System.Drawing.Color.FromArgb(24, 30, 40);
+                                break;
                         }
                     }
-                    using (Brush brush = new SolidBrush(color))
+
+                    var badgeRect = new RectangleF(1.5f, 1.5f, size - 3f, size - 3f);
+                    using (GraphicsPath badgePath = CreateRoundedRectPath(badgeRect, 7f))
                     {
-                        g.FillEllipse(brush, 0, 0, 15, 15);
-                    }
-                    using (System.Drawing.Font font = new System.Drawing.Font("Arial", 8, System.Drawing.FontStyle.Bold))
-                    {
-                        string text = _isPaused ? "P" : _currentMode.ToString().Substring(0, 1);
-                        using (Brush textBrush = new SolidBrush(System.Drawing.Color.Black))
+                        using (var bgBrush = new LinearGradientBrush(badgeRect, topColor, bottomColor, LinearGradientMode.Vertical))
                         {
-                            StringFormat sf = new StringFormat
-                            {
-                                Alignment = StringAlignment.Center,
-                                LineAlignment = StringAlignment.Center
-                            };
-                            g.DrawString(text, font, textBrush, new RectangleF(0, 0, 16, 16), sf);
+                            g.FillPath(bgBrush, badgePath);
+                        }
+
+                        using (var borderPen = new Pen(borderColor, 1.75f))
+                        {
+                            g.DrawPath(borderPen, badgePath);
+                        }
+                    }
+
+                    if (_isPaused)
+                    {
+                        using (var barBrush = new SolidBrush(System.Drawing.Color.White))
+                        {
+                            g.FillRectangle(barBrush, 9f, 8f, 5f, 16f);
+                            g.FillRectangle(barBrush, 18f, 8f, 5f, 16f);
+                        }
+                    }
+                    else
+                    {
+                        // Performance gauge icon (no letter): needle left = Silent, up = Balanced, right = Turbo
+                        float cx = 16f;
+                        float cy = 17.5f;
+                        float r = 8.5f;
+                        var arcRect = new RectangleF(cx - r, cy - r, r * 2f, r * 2f);
+
+                        using (var arcPen = new Pen(textColor, 2.5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                        {
+                            g.DrawArc(arcPen, arcRect, 145f, 250f);
+                        }
+
+                        (float nx, float ny) = _currentMode switch
+                        {
+                            TargetMode.Silent => (cx - 6.2f, cy - 3.6f),
+                            TargetMode.Turbo => (cx + 6.2f, cy - 3.6f),
+                            _ => (cx, cy - 7.2f)
+                        };
+
+                        using (var needlePen = new Pen(textColor, 2.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                        {
+                            g.DrawLine(needlePen, cx, cy, nx, ny);
+                        }
+
+                        using (var pivotBrush = new SolidBrush(textColor))
+                        {
+                            g.FillEllipse(pivotBrush, cx - 2.3f, cy - 2.3f, 4.6f, 4.6f);
                         }
                     }
                 }
-                
+
                 IntPtr hIcon = bitmap.GetHicon();
                 System.Drawing.Icon newIcon = System.Drawing.Icon.FromHandle(hIcon);
 
                 var oldIcon = _notifyIcon.Icon;
                 _notifyIcon.Icon = newIcon;
-                _notifyIcon.Text = $"G-Helper - {_currentMode}";
+                _notifyIcon.Text = _isPaused ? "G-Helper - Paused" : $"G-Helper - {_currentMode}";
 
                 if (_currentIconHandle != IntPtr.Zero)
                 {
