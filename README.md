@@ -12,7 +12,7 @@ A lightweight Windows application that automatically switches [G-Helper](https:/
 
 ## Requirements
 - Windows OS
-- .NET 8.0 Desktop Runtime
+- .NET 10.0 Desktop Runtime
 - [G-Helper](https://github.com/seerge/g-helper) installed and running.
 
 ## Installation
@@ -31,7 +31,7 @@ To build the project yourself:
    ```bash
    dotnet build --configuration Release
    ```
-3. The executable will be located in the `bin/Release/net8.0-windows/` folder.
+3. The executable will be located in the `bin/Release/net10.0-windows/` folder.
 
 ## Usage
 1. Launch the application.
