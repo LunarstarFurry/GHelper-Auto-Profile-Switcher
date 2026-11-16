@@ -5,6 +5,7 @@ on:
     branches: [ "main", "master", "dev" ]
     tags:
       - 'v*'
+      - 'V*'
   pull_request:
     branches: [ "main", "master", "dev" ]
   workflow_dispatch:
@@ -48,7 +49,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V')
     permissions:
       contents: write
     steps:
